@@ -1,0 +1,8 @@
+[fuzz.metrics]
+enabled = true
+
+
+[[fuzz.programs]]
+address = "Ah7iuugan983ymZAKJAFAdvPN3My7ESkGUARrFTn3iqM"
+program = "target/deploy/merkle_distributor_fee_task.so"
+ 

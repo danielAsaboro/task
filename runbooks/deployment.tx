@@ -1,0 +1,18 @@
+addon "svm" {
+    network_id = "localnet"
+    rpc_api_url = "http://localhost:8899"
+}
+
+signer "deployer" "svm::secret_key" {
+    keypair_json = "~/.config/solana/id.json"
+}
+
+action "deploy" "svm::deploy_program" {
+    description = "Deploy merkle distributor fee task program"
+    program = svm::get_program_from_anchor_project("merkle_distributor_fee_task")
+    authority = signer.deployer
+}
+
+output "program_id" {
+    value = action.deploy.program_id
+}
