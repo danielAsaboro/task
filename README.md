@@ -47,9 +47,25 @@ End-to-end run on devnet — fee config initialized, distributor created, claim 
 
 The `new_claim` tx shows 5,000,000 lamports transferred from claimant → fee recipient before the token transfer. The claim is atomic — if SOL transfer fails, no tokens move.
 
-To run it yourself:
 ```bash
 npx ts-node --transpile-only scripts/devnet-e2e.ts
+```
+
+### Sad path transactions
+
+Each submitted with `skipPreflight: true` — these landed on-chain as confirmed failures, proving constraints hold at the program level, not just in simulation.
+
+| Case | On-chain error | Transaction |
+|---|---|---|
+| Non-admin calls `set_claim_fee` | `Custom:6005` (Unauthorized) | [`5DuN2Ph3...`](https://explorer.solana.com/tx/5DuN2Ph3CmZdRNMWUDjYuBn1eF1BcmWUpfjY2Fq5Nq9MUbBqXNzVeSsYKCHheX2NNFQ1s9ypndqwDbonrRGtUWp7?cluster=devnet) |
+| Wrong `fee_recipient` on `new_claim` | `Custom:6018` (InvalidFeeRecipient) | [`2gWSbM74...`](https://explorer.solana.com/tx/2gWSbM74BGnute9MUBwVkFEZSVByi5svYqMR94EdsXP511wSBUBrtbRbKphBcLtFwFKAPjf3jYE6dJh7X2DdoRVZ?cluster=devnet) |
+| Claimant has insufficient SOL for fee | `Custom:1` — 0 tokens moved to claimant | [`3WdJUuDf...`](https://explorer.solana.com/tx/3WdJUuDfMKH6ZN7DenhTE9ZsBJ4YBLxKahoBgGFQsjsJP95LkCdb7hpVdemNSnpBx6NbaJujJat9pjgZVGoxJYK3?cluster=devnet) |
+| Re-initialize `fee_config` | `Custom:0` (account already in use) | [`9tJRwuwx...`](https://explorer.solana.com/tx/9tJRwuwxRej3wYrk2cPdHfnx6jUs1LhRsJzJq1tnJLuL42PUeoFkDjczE4NT1ggaZZZ389T5LnNcCVh24ToHtv1?cluster=devnet) |
+
+The insufficient-SOL case is the most important atomicity proof — vault had tokens, but claimant ATA balance stayed 0 because the fee CPI failed first.
+
+```bash
+npx ts-node --transpile-only scripts/devnet-sad-cases.ts
 ```
 
 ---
