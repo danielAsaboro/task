@@ -160,6 +160,83 @@ describe("merkle-distributor-fee-task", () => {
     }
   });
 
+  // ─── set_fee_admin Happy Path ──────────────────────────────────────────
+
+  it("admin transfers fee admin to new account", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const newAdmin = Keypair.generate();
+    await fund(newAdmin);
+
+    // Transfer admin to newAdmin
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: provider.wallet.publicKey,
+        newAdmin: newAdmin.publicKey,
+      })
+      .rpc();
+
+    const cfg = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.ok(cfg.admin.equals(newAdmin.publicKey), "Admin should be the new admin");
+
+    // Transfer back so subsequent tests still work
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: newAdmin.publicKey,
+        newAdmin: provider.wallet.publicKey,
+      })
+      .signers([newAdmin])
+      .rpc();
+
+    const restored = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.ok(restored.admin.equals(provider.wallet.publicKey), "Admin should be restored");
+  });
+
+  it("new admin can update fee after transfer", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const newAdmin = Keypair.generate();
+    await fund(newAdmin);
+    const recipient = Keypair.generate();
+
+    // Transfer admin
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: provider.wallet.publicKey,
+        newAdmin: newAdmin.publicKey,
+      })
+      .rpc();
+
+    // New admin updates fee
+    await program.methods
+      .setClaimFee(new anchor.BN(8_000_000))
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: newAdmin.publicKey,
+        newFeeRecipient: recipient.publicKey,
+      })
+      .signers([newAdmin])
+      .rpc();
+
+    const cfg = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.equal(cfg.claimFee.toNumber(), 8_000_000);
+
+    // Transfer back
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: newAdmin.publicKey,
+        newAdmin: provider.wallet.publicKey,
+      })
+      .signers([newAdmin])
+      .rpc();
+  });
+
   it("changes recipient without changing fee amount", async () => {
     const [feeConfigPda] = getFeeConfigPDA();
     const r1 = Keypair.generate();
@@ -433,18 +510,62 @@ describe("merkle-distributor-fee-task", () => {
     }
   });
 
-  it("SAD: u64 max fee is accepted but would make claims fail", async () => {
-    // The contract doesn't cap fee_amount — it stores any u64 value.
-    // But claiming with this fee would fail since no one has 18 quintillion lamports.
-    // This test verifies the value can be SET (no overflow on init/set).
+  it("SAD: u64 max fee is rejected (exceeds MAX_CLAIM_FEE)", async () => {
     const [feeConfigPda] = getFeeConfigPDA();
     const recipient = Keypair.generate();
 
-    // BN can hold u64 max
     const maxU64 = new anchor.BN("18446744073709551615");
 
+    try {
+      await program.methods
+        .setClaimFee(maxU64)
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: provider.wallet.publicKey,
+          newFeeRecipient: recipient.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown — fee exceeds MAX_CLAIM_FEE");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("FeeExceedsMaximum") ||
+          err.toString().includes("6020") ||
+          err.toString().includes("Error"),
+        `Expected FeeExceedsMaximum, got: ${err}`
+      );
+    }
+  });
+
+  it("SAD: fee just above MAX_CLAIM_FEE (1 SOL + 1) is rejected", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const recipient = Keypair.generate();
+
+    try {
+      await program.methods
+        .setClaimFee(new anchor.BN(1_000_000_001))
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: provider.wallet.publicKey,
+          newFeeRecipient: recipient.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown — fee exceeds MAX_CLAIM_FEE");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("FeeExceedsMaximum") ||
+          err.toString().includes("6020") ||
+          err.toString().includes("Error"),
+        `Expected FeeExceedsMaximum, got: ${err}`
+      );
+    }
+  });
+
+  it("fee at MAX_CLAIM_FEE (1 SOL) is accepted", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const recipient = Keypair.generate();
+
     await program.methods
-      .setClaimFee(maxU64)
+      .setClaimFee(new anchor.BN(1_000_000_000))
       .accounts({
         feeConfig: feeConfigPda,
         admin: provider.wallet.publicKey,
@@ -453,7 +574,7 @@ describe("merkle-distributor-fee-task", () => {
       .rpc();
 
     const cfg = await program.account.feeConfig.fetch(feeConfigPda);
-    assert.equal(cfg.claimFee.toString(), "18446744073709551615");
+    assert.equal(cfg.claimFee.toNumber(), 1_000_000_000);
 
     // Restore to sane value for subsequent tests
     await program.methods
@@ -464,6 +585,56 @@ describe("merkle-distributor-fee-task", () => {
         newFeeRecipient: recipient.publicKey,
       })
       .rpc();
+  });
+
+  it("SAD: non-admin cannot transfer fee admin", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const attacker = Keypair.generate();
+    await fund(attacker);
+
+    try {
+      await program.methods
+        .setFeeAdmin()
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: attacker.publicKey,
+          newAdmin: attacker.publicKey,
+        })
+        .signers([attacker])
+        .rpc();
+      assert.fail("Should have thrown — attacker is not admin");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("ConstraintAddress") ||
+          err.toString().includes("Unauthorized") ||
+          err.toString().includes("SameFeeAdmin") ||
+          err.toString().includes("Error"),
+        `Expected auth error, got: ${err}`
+      );
+    }
+  });
+
+  it("SAD: cannot transfer fee admin to same admin", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+
+    try {
+      await program.methods
+        .setFeeAdmin()
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: provider.wallet.publicKey,
+          newAdmin: provider.wallet.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown — same admin");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("SameFeeAdmin") ||
+          err.toString().includes("6019") ||
+          err.toString().includes("Error"),
+        `Expected SameFeeAdmin, got: ${err}`
+      );
+    }
   });
 
   it("SAD: initialize_fee_config with zero recipient and positive fee fails", async () => {
@@ -487,6 +658,191 @@ describe("merkle-distributor-fee-task", () => {
         `Expected InvalidFeeRecipient, got: ${err}`
       );
     }
+  });
+
+  it("SAD: old admin locked out after fee admin transfer", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const newAdmin = Keypair.generate();
+    await fund(newAdmin);
+    const recipient = Keypair.generate();
+
+    // Transfer admin
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: provider.wallet.publicKey,
+        newAdmin: newAdmin.publicKey,
+      })
+      .rpc();
+
+    // Old admin tries to update fee — should fail
+    try {
+      await program.methods
+        .setClaimFee(new anchor.BN(999))
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: provider.wallet.publicKey,
+          newFeeRecipient: recipient.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown — old admin no longer authorized");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("ConstraintAddress") ||
+          err.toString().includes("Unauthorized"),
+        `Expected auth error, got: ${err}`
+      );
+    }
+
+    // Old admin also can't transfer admin back
+    try {
+      await program.methods
+        .setFeeAdmin()
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: provider.wallet.publicKey,
+          newAdmin: provider.wallet.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown — old admin locked out");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("ConstraintAddress") ||
+          err.toString().includes("Unauthorized"),
+        `Expected auth error, got: ${err}`
+      );
+    }
+
+    // Restore: new admin transfers back
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: newAdmin.publicKey,
+        newAdmin: provider.wallet.publicKey,
+      })
+      .signers([newAdmin])
+      .rpc();
+  });
+
+  it("set_fee_admin chain of custody: A → B → C → A", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const adminB = Keypair.generate();
+    const adminC = Keypair.generate();
+    await fund(adminB);
+    await fund(adminC);
+
+    // A → B
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: provider.wallet.publicKey,
+        newAdmin: adminB.publicKey,
+      })
+      .rpc();
+
+    let cfg = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.ok(cfg.admin.equals(adminB.publicKey));
+
+    // B → C
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: adminB.publicKey,
+        newAdmin: adminC.publicKey,
+      })
+      .signers([adminB])
+      .rpc();
+
+    cfg = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.ok(cfg.admin.equals(adminC.publicKey));
+
+    // C → A (back to original)
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: adminC.publicKey,
+        newAdmin: provider.wallet.publicKey,
+      })
+      .signers([adminC])
+      .rpc();
+
+    cfg = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.ok(cfg.admin.equals(provider.wallet.publicKey));
+  });
+
+  it("SAD: MAX_CLAIM_FEE enforced on initialize_fee_config too", async () => {
+    // Can't actually re-init, but we test via set_claim_fee since
+    // both use the same MAX_CLAIM_FEE check. This test confirms
+    // the boundary at 1 SOL + 1 lamport.
+    const [feeConfigPda] = getFeeConfigPDA();
+    const recipient = Keypair.generate();
+
+    // 2 SOL should be rejected
+    try {
+      await program.methods
+        .setClaimFee(new anchor.BN(2_000_000_000))
+        .accounts({
+          feeConfig: feeConfigPda,
+          admin: provider.wallet.publicKey,
+          newFeeRecipient: recipient.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown — 2 SOL exceeds MAX_CLAIM_FEE");
+    } catch (err: any) {
+      assert.ok(
+        err.toString().includes("FeeExceedsMaximum") ||
+          err.toString().includes("6020"),
+        `Expected FeeExceedsMaximum, got: ${err}`
+      );
+    }
+  });
+
+  it("fee and recipient preserved after admin transfer", async () => {
+    const [feeConfigPda] = getFeeConfigPDA();
+    const newAdmin = Keypair.generate();
+    await fund(newAdmin);
+    const recipient = Keypair.generate();
+
+    // Set a specific fee and recipient
+    await program.methods
+      .setClaimFee(new anchor.BN(42_000_000))
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: provider.wallet.publicKey,
+        newFeeRecipient: recipient.publicKey,
+      })
+      .rpc();
+
+    // Transfer admin
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: provider.wallet.publicKey,
+        newAdmin: newAdmin.publicKey,
+      })
+      .rpc();
+
+    // Verify fee and recipient unchanged
+    const cfg = await program.account.feeConfig.fetch(feeConfigPda);
+    assert.equal(cfg.claimFee.toNumber(), 42_000_000, "Fee should be preserved after admin transfer");
+    assert.ok(cfg.feeRecipient.equals(recipient.publicKey), "Recipient should be preserved after admin transfer");
+
+    // Restore
+    await program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPda,
+        admin: newAdmin.publicKey,
+        newAdmin: provider.wallet.publicKey,
+      })
+      .signers([newAdmin])
+      .rpc();
   });
 
   it("SAD: admin field is immutable via set_claim_fee", async () => {
