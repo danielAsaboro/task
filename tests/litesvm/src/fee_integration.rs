@@ -401,20 +401,21 @@ fn sad_set_fee_wrong_pda_seed() {
 }
 
 #[test]
-fn sad_max_u64_fee_init_succeeds_but_claim_would_fail() {
-    // Initialize with u64::MAX fee — should succeed (no overflow in init)
-    // But any claim would fail because nobody has that much SOL
+fn sad_fee_exceeding_max_rejected_on_init() {
+    // Fee above MAX_CLAIM_FEE (1 SOL) must be rejected at init time
     let mut svm = setup_svm();
     let admin = Keypair::new();
     let r = Keypair::new();
     svm.airdrop(&admin.pubkey(), 10_000_000_000).unwrap();
 
-    assert!(send_ix(&mut svm, ix_init_fee(&admin.pubkey(), &r.pubkey(), u64::MAX), &admin).is_ok());
+    // u64::MAX far exceeds MAX_CLAIM_FEE — must fail
+    assert!(send_ix(&mut svm, ix_init_fee(&admin.pubkey(), &r.pubkey(), u64::MAX), &admin).is_err());
 
-    let (pda, _) = fee_config_pda();
-    let acct = svm.get_account(&pda).unwrap();
-    let (_, f, _, _) = parse_fee_config(&acct.data);
-    assert_eq!(f, u64::MAX);
+    // MAX_CLAIM_FEE + 1 — boundary: must fail
+    assert!(send_ix(&mut svm, ix_init_fee(&admin.pubkey(), &r.pubkey(), 1_000_000_001), &admin).is_err());
+
+    // MAX_CLAIM_FEE exactly — boundary: must succeed
+    assert!(send_ix(&mut svm, ix_init_fee(&admin.pubkey(), &r.pubkey(), 1_000_000_000), &admin).is_ok());
 }
 
 #[test]

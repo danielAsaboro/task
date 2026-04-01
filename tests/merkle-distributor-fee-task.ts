@@ -307,8 +307,7 @@ describe("merkle-distributor-fee-task", () => {
       assert.ok(
         err.toString().includes("ConstraintAddress") ||
           err.toString().includes("Unauthorized") ||
-          err.toString().includes("2012") ||
-          err.toString().includes("Error"),
+          err.toString().includes("2012"),
         `Unexpected error: ${err}`
       );
     }
@@ -330,8 +329,7 @@ describe("merkle-distributor-fee-task", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("InvalidFeeRecipient") ||
-          err.toString().includes("6018") ||
-          err.toString().includes("Error"),
+          err.toString().includes("6018"),
         `Unexpected error: ${err}`
       );
     }
@@ -433,8 +431,7 @@ describe("merkle-distributor-fee-task", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("ConstraintSeeds") ||
-          err.toString().includes("AccountNotInitialized") ||
-          err.toString().includes("Error"),
+          err.toString().includes("AccountNotInitialized"),
         `Expected seeds or account error, got: ${err}`
       );
     }
@@ -529,8 +526,7 @@ describe("merkle-distributor-fee-task", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("FeeExceedsMaximum") ||
-          err.toString().includes("6020") ||
-          err.toString().includes("Error"),
+          err.toString().includes("6020"),
         `Expected FeeExceedsMaximum, got: ${err}`
       );
     }
@@ -553,8 +549,7 @@ describe("merkle-distributor-fee-task", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("FeeExceedsMaximum") ||
-          err.toString().includes("6020") ||
-          err.toString().includes("Error"),
+          err.toString().includes("6020"),
         `Expected FeeExceedsMaximum, got: ${err}`
       );
     }
@@ -607,8 +602,7 @@ describe("merkle-distributor-fee-task", () => {
       assert.ok(
         err.toString().includes("ConstraintAddress") ||
           err.toString().includes("Unauthorized") ||
-          err.toString().includes("SameFeeAdmin") ||
-          err.toString().includes("Error"),
+          err.toString().includes("SameFeeAdmin"),
         `Expected auth error, got: ${err}`
       );
     }
@@ -630,8 +624,7 @@ describe("merkle-distributor-fee-task", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("SameFeeAdmin") ||
-          err.toString().includes("6019") ||
-          err.toString().includes("Error"),
+          err.toString().includes("6019"),
         `Expected SameFeeAdmin, got: ${err}`
       );
     }

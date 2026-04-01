@@ -11,6 +11,9 @@
  *   2. Wrong fee_recipient on new_claim           → InvalidFeeRecipient (6018)
  *   3. Claimant has insufficient SOL for fee      → tx reverts atomically, no tokens move
  *   4. Re-initialize fee_config                   → account already in use
+ *   5. Non-admin calls set_fee_admin              → Unauthorized (6005)
+ *   6. Admin transfers to same admin              → SameFeeAdmin (6019)
+ *   7. Fee exceeds MAX_CLAIM_FEE (1 SOL + 1)     → FeeExceedsMaximum (6020)
  *
  * Run:
  *   npx ts-node --transpile-only scripts/devnet-sad-cases.ts
@@ -91,17 +94,26 @@ async function sendAndExpectFailure(
   const raw = tx.serialize();
   const sig = await connection.sendRawTransaction(raw, { skipPreflight: true });
 
-  // Wait for confirmation (the tx will be confirmed as failed)
-  const result = await connection.confirmTransaction(
-    { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed"
-  );
-
-  const error = result.value.err
-    ? JSON.stringify(result.value.err)
-    : "no error — tx unexpectedly succeeded";
-
-  return { sig, error };
+  // Wait for confirmation (the tx will be confirmed as failed).
+  // confirmTransaction may throw on some web3.js versions for failed txs.
+  try {
+    const result = await connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    const error = result.value.err
+      ? JSON.stringify(result.value.err)
+      : "no error — tx unexpectedly succeeded";
+    return { sig, error };
+  } catch (e: any) {
+    // Fallback: poll the tx status directly
+    await new Promise(r => setTimeout(r, 3000));
+    const status = await connection.getSignatureStatus(sig);
+    const error = status?.value?.err
+      ? JSON.stringify(status.value.err)
+      : e.toString();
+    return { sig, error };
+  }
 }
 
 async function setupDistributor(
@@ -317,6 +329,60 @@ async function main() {
   results.push({ case: "re-initialize fee_config", expected: "account already in use", ...r4 });
   console.log("  on-chain error:", r4.error);
   console.log("  explorer:      ", explorer(r4.sig));
+
+  // ── Case 5: non-admin calls set_fee_admin ──────────────────────────────────
+
+  console.log("\n[5] non-admin calls set_fee_admin...");
+  const attacker5 = Keypair.generate();
+  await fundFromAdmin(connection, admin, attacker5.publicKey, 0.01 * LAMPORTS_PER_SOL);
+
+  const ix5 = await program.methods
+    .setFeeAdmin()
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: attacker5.publicKey,         // ← not the admin
+      newAdmin: attacker5.publicKey,
+    })
+    .instruction();
+
+  const r5 = await sendAndExpectFailure(connection, new Transaction().add(ix5), [attacker5]);
+  results.push({ case: "non-admin calls set_fee_admin", expected: "Unauthorized (6005)", ...r5 });
+  console.log("  on-chain error:", r5.error);
+  console.log("  explorer:      ", explorer(r5.sig));
+
+  // ── Case 6: admin transfers to same admin ─────────────────────────────────
+
+  console.log("\n[6] admin transfers to same admin (self)...");
+  const ix6 = await program.methods
+    .setFeeAdmin()
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: admin.publicKey,
+      newAdmin: admin.publicKey,          // ← same as current admin
+    })
+    .instruction();
+
+  const r6 = await sendAndExpectFailure(connection, new Transaction().add(ix6), [admin]);
+  results.push({ case: "admin transfers to self", expected: "SameFeeAdmin (6019)", ...r6 });
+  console.log("  on-chain error:", r6.error);
+  console.log("  explorer:      ", explorer(r6.sig));
+
+  // ── Case 7: fee exceeds MAX_CLAIM_FEE ─────────────────────────────────────
+
+  console.log("\n[7] set_claim_fee with 1 SOL + 1 lamport (exceeds MAX_CLAIM_FEE)...");
+  const ix7 = await program.methods
+    .setClaimFee(new BN(1_000_000_001))   // 1 SOL + 1 lamport
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: admin.publicKey,
+      newFeeRecipient: admin.publicKey,
+    })
+    .instruction();
+
+  const r7 = await sendAndExpectFailure(connection, new Transaction().add(ix7), [admin]);
+  results.push({ case: "fee exceeds MAX_CLAIM_FEE", expected: "FeeExceedsMaximum (6020)", ...r7 });
+  console.log("  on-chain error:", r7.error);
+  console.log("  explorer:      ", explorer(r7.sig));
 
   // ── Summary ───────────────────────────────────────────────────────────────
 

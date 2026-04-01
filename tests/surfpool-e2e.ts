@@ -539,8 +539,7 @@ describe("surfpool-e2e: full claim lifecycle with fees", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("InvalidFeeRecipient") ||
-          err.toString().includes("6018") ||
-          err.toString().includes("Error")
+          err.toString().includes("6018"),
       );
     }
   });
@@ -599,8 +598,7 @@ describe("surfpool-e2e: full claim lifecycle with fees", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("InvalidFeeRecipient") ||
-          err.toString().includes("6018") ||
-          err.toString().includes("Error")
+          err.toString().includes("6018"),
       );
     }
   });
@@ -724,8 +722,7 @@ describe("surfpool-e2e: full claim lifecycle with fees", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("ConstraintSeeds") ||
-          err.toString().includes("seeds constraint") ||
-          err.toString().includes("Error")
+          err.toString().includes("seeds constraint"),
       );
     }
   });
@@ -783,8 +780,7 @@ describe("surfpool-e2e: full claim lifecycle with fees", () => {
     } catch (err: any) {
       assert.ok(
         err.toString().includes("InsufficientUnlockedTokens") ||
-          err.toString().includes("6000") ||
-          err.toString().includes("Error")
+          err.toString().includes("6000"),
       );
     }
   });

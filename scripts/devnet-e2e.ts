@@ -4,7 +4,8 @@
  *   2. Create a MerkleDistributor with a single-leaf tree (immediate unlock)
  *   3. Fund the distributor vault
  *   4. Claimant calls new_claim — SOL fee deducted, tokens transferred
- *   5. Print all signatures + final balances
+ *   5. Transfer fee admin to a new key, verify new admin can update fee
+ *   6. Transfer admin back, print all signatures + final balances
  *
  * Run:
  *   npx ts-node scripts/devnet-e2e.ts
@@ -263,7 +264,7 @@ async function main() {
     .rpc();
   console.log("    sig:", explorer(claimSig));
 
-  // ── 5. Verify ─────────────────────────────────────────────────────────────
+  // ── 5. Verify claim ────────────────────────────────────────────────────────
 
   const tokenAcct = await getAccount(connection, claimantATA.address);
   const feeRecipientBalAfter = await connection.getBalance(admin.publicKey);
@@ -272,15 +273,86 @@ async function main() {
   const feeReceived = feeRecipientBalAfter - feeRecipientBalBefore;
   const claimantSpent = claimantBalBefore - claimantBalAfter;
 
-  console.log("\n=== results ===");
+  console.log("\n=== claim results ===");
   console.log("tokens received:       ", tokenAcct.amount.toString(), "(expected", CLAIM_AMOUNT, ")");
   console.log("fee deducted (claimant):", claimantSpent, "lamports");
   console.log("fee received (admin):   ", feeReceived, "lamports (expected ~", CLAIM_FEE_LAMPORTS, ")");
+
+  // ── 6. set_fee_admin: transfer admin to new key ───────────────────────────
+
+  console.log("\n[6] transferring fee admin to new key...");
+  const newAdmin = Keypair.generate();
+  await fundFromAdmin(connection, admin, newAdmin.publicKey, 0.01 * LAMPORTS_PER_SOL);
+
+  const transferAdminSig = await program.methods
+    .setFeeAdmin()
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: admin.publicKey,
+      newAdmin: newAdmin.publicKey,
+    })
+    .rpc();
+  console.log("    sig:", explorer(transferAdminSig));
+
+  // Verify new admin is set
+  const cfgAfterTransfer = await program.account.feeConfig.fetch(feeConfigPDA);
+  console.log("    new admin:", cfgAfterTransfer.admin.toBase58());
+  console.log("    fee preserved:", cfgAfterTransfer.claimFee.toString(), "lamports");
+
+  // ── 7. New admin updates fee (proves authority transferred) ───────────────
+
+  console.log("\n[7] new admin updates fee to 0.01 SOL...");
+  const newRecipient = Keypair.generate();
+
+  const newAdminUpdateSig = await program.methods
+    .setClaimFee(new BN(10_000_000))
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: newAdmin.publicKey,
+      newFeeRecipient: newRecipient.publicKey,
+    })
+    .signers([newAdmin])
+    .rpc();
+  console.log("    sig:", explorer(newAdminUpdateSig));
+
+  const cfgAfterUpdate = await program.account.feeConfig.fetch(feeConfigPDA);
+  console.log("    updated fee:", cfgAfterUpdate.claimFee.toString(), "lamports");
+  console.log("    updated recipient:", cfgAfterUpdate.feeRecipient.toBase58());
+
+  // ── 8. Transfer admin back to original ────────────────────────────────────
+
+  console.log("\n[8] transferring admin back to original...");
+  const restoreAdminSig = await program.methods
+    .setFeeAdmin()
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: newAdmin.publicKey,
+      newAdmin: admin.publicKey,
+    })
+    .signers([newAdmin])
+    .rpc();
+  console.log("    sig:", explorer(restoreAdminSig));
+
+  // Restore fee to original value
+  await program.methods
+    .setClaimFee(new BN(CLAIM_FEE_LAMPORTS))
+    .accounts({
+      feeConfig: feeConfigPDA,
+      admin: admin.publicKey,
+      newFeeRecipient: admin.publicKey,
+    })
+    .rpc();
+  console.log("    fee restored to", CLAIM_FEE_LAMPORTS, "lamports");
+
+  // ── Summary ───────────────────────────────────────────────────────────────
 
   console.log("\n=== transaction signatures ===");
   if (initFeeSig) console.log("initialize_fee_config: ", explorer(initFeeSig));
   console.log("new_distributor:       ", explorer(newDistSig));
   console.log("new_claim:             ", explorer(claimSig));
+  console.log("set_fee_admin (A→B):   ", explorer(transferAdminSig));
+  console.log("set_claim_fee (by B):  ", explorer(newAdminUpdateSig));
+  console.log("set_fee_admin (B→A):   ", explorer(restoreAdminSig));
 
   // Emit structured output for README
   console.log("\n=== README block ===");
@@ -288,6 +360,9 @@ async function main() {
   if (initFeeSig) console.log(`initialize_fee_config: ${initFeeSig}`);
   console.log(`new_distributor:      ${newDistSig}`);
   console.log(`new_claim:            ${claimSig}`);
+  console.log(`set_fee_admin (A→B):  ${transferAdminSig}`);
+  console.log(`set_claim_fee (by B): ${newAdminUpdateSig}`);
+  console.log(`set_fee_admin (B→A):  ${restoreAdminSig}`);
   console.log(`fee config PDA:       ${feeConfigPDA.toBase58()}`);
   console.log(`distributor PDA:      ${distributorPDA.toBase58()}`);
 }
