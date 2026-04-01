@@ -1,0 +1,15 @@
+[package]
+name = "merkle-distributor-fuzz-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "fuzz_0"
+path = "fuzz_0/test_fuzz.rs"
+
+[dependencies]
+trident-fuzz = "0.12"
+solana-sdk = "2"
+borsh = "0.10"
+merkle-distributor-fee-task = { path = "../programs/merkle-distributor-fee-task", features = ["no-entrypoint"] }
