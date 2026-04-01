@@ -1,5 +1,9 @@
 use anchor_lang::prelude::*;
 
+/// Maximum claim fee: 1 SOL (1_000_000_000 lamports).
+/// Prevents accidental or malicious fee values that would make claims impossible.
+pub const MAX_CLAIM_FEE: u64 = 1_000_000_000;
+
 /// Global fee configuration for the protocol.
 /// Single PDA per program — controls claim fees across all distributors.
 #[account]
@@ -69,10 +73,15 @@ mod tests {
     fn test_fee_config_max_fee() {
         let config = FeeConfig {
             admin: Pubkey::new_unique(),
-            claim_fee: u64::MAX,
+            claim_fee: MAX_CLAIM_FEE,
             fee_recipient: Pubkey::new_unique(),
             bump: 1,
         };
-        assert_eq!(config.claim_fee, u64::MAX);
+        assert_eq!(config.claim_fee, MAX_CLAIM_FEE);
+    }
+
+    #[test]
+    fn test_max_claim_fee_constant() {
+        assert_eq!(MAX_CLAIM_FEE, 1_000_000_000);
     }
 }

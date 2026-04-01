@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::ErrorCode, state::fee_config::FeeConfig};
+use crate::{error::ErrorCode, state::fee_config::{FeeConfig, MAX_CLAIM_FEE}};
 
 /// Accounts for [merkle_distributor_fee_task::initialize_fee_config].
 #[derive(Accounts)]
@@ -34,6 +34,11 @@ pub fn handle_initialize_fee_config(
     ctx: Context<InitializeFeeConfig>,
     claim_fee: u64,
 ) -> Result<()> {
+    require!(
+        claim_fee <= MAX_CLAIM_FEE,
+        ErrorCode::FeeExceedsMaximum
+    );
+
     if claim_fee > 0 {
         require!(
             ctx.accounts.fee_recipient.key() != Pubkey::default(),
@@ -46,6 +51,12 @@ pub fn handle_initialize_fee_config(
     fee_config.claim_fee = claim_fee;
     fee_config.fee_recipient = ctx.accounts.fee_recipient.key();
     fee_config.bump = ctx.bumps.fee_config;
+
+    emit!(crate::state::claimed_event::FeeConfigInitializedEvent {
+        admin: fee_config.admin,
+        claim_fee: fee_config.claim_fee,
+        fee_recipient: fee_config.fee_recipient,
+    });
 
     msg!(
         "Fee config initialized: fee={} lamports, recipient={}",

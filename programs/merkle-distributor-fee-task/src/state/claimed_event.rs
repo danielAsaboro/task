@@ -30,3 +30,34 @@ pub struct FeeCollectedEvent {
     /// Distributor the claim is against.
     pub distributor: Pubkey,
 }
+
+/// Emitted when the fee configuration is initialized.
+#[event]
+pub struct FeeConfigInitializedEvent {
+    /// Admin that initialized the fee config.
+    pub admin: Pubkey,
+    /// Initial claim fee in lamports.
+    pub claim_fee: u64,
+    /// Initial fee recipient wallet.
+    pub fee_recipient: Pubkey,
+}
+
+/// Emitted when the claim fee or recipient is updated.
+#[event]
+pub struct FeeConfigUpdatedEvent {
+    /// Admin that updated the fee config.
+    pub admin: Pubkey,
+    /// New claim fee in lamports.
+    pub new_claim_fee: u64,
+    /// New fee recipient wallet.
+    pub new_fee_recipient: Pubkey,
+}
+
+/// Emitted when the fee config admin is transferred.
+#[event]
+pub struct FeeAdminUpdatedEvent {
+    /// Previous admin.
+    pub previous_admin: Pubkey,
+    /// New admin.
+    pub new_admin: Pubkey,
+}
