@@ -74,6 +74,28 @@ export interface FeeCollectedEvent {
   distributor: PublicKey;
 }
 
+export interface FeeConfigInitializedEvent {
+  admin: PublicKey;
+  claimFee: BN;
+  feeRecipient: PublicKey;
+}
+
+export interface FeeConfigUpdatedEvent {
+  admin: PublicKey;
+  newClaimFee: BN;
+  newFeeRecipient: PublicKey;
+}
+
+export interface FeeAdminUpdatedEvent {
+  previousAdmin: PublicKey;
+  newAdmin: PublicKey;
+}
+
+/**
+ * Maximum claim fee: 1 SOL (1_000_000_000 lamports)
+ */
+export const MAX_CLAIM_FEE = 1_000_000_000n;
+
 /**
  * Error codes
  */
@@ -97,6 +119,8 @@ export enum DistributorError {
   TimestampsNotInFuture = 6016,
   InvalidVersion = 6017,
   InvalidFeeRecipient = 6018,
+  SameFeeAdmin = 6019,
+  FeeExceedsMaximum = 6020,
 }
 
 /**
@@ -125,6 +149,14 @@ export interface SetClaimFeeArgs {
   admin: PublicKey;
   claimFee: bigint;
   feeRecipient: PublicKey;
+}
+
+/**
+ * Arguments for transferring fee config admin authority
+ */
+export interface SetFeeAdminArgs {
+  admin: PublicKey;
+  newAdmin: PublicKey;
 }
 
 /**

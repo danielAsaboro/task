@@ -1025,6 +1025,60 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "set_fee_admin",
+      "discriminator": [
+        45,
+        227,
+        180,
+        113,
+        69,
+        212,
+        7,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "fee_config",
+          "docs": [
+            "Global fee configuration PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  70,
+                  101,
+                  101,
+                  67,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "docs": [
+            "Current fee config admin signer."
+          ],
+          "signer": true
+        },
+        {
+          "name": "new_admin",
+          "docs": [
+            "New admin account."
+          ]
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -1083,6 +1137,19 @@
       ]
     },
     {
+      "name": "FeeAdminUpdatedEvent",
+      "discriminator": [
+        225,
+        186,
+        137,
+        91,
+        195,
+        18,
+        137,
+        234
+      ]
+    },
+    {
       "name": "FeeCollectedEvent",
       "discriminator": [
         142,
@@ -1093,6 +1160,32 @@
         191,
         46,
         40
+      ]
+    },
+    {
+      "name": "FeeConfigInitializedEvent",
+      "discriminator": [
+        126,
+        55,
+        184,
+        96,
+        120,
+        46,
+        19,
+        178
+      ]
+    },
+    {
+      "name": "FeeConfigUpdatedEvent",
+      "discriminator": [
+        139,
+        188,
+        235,
+        116,
+        222,
+        55,
+        95,
+        201
       ]
     },
     {
@@ -1204,6 +1297,16 @@
       "code": 6018,
       "name": "InvalidFeeRecipient",
       "msg": "Fee recipient does not match fee configuration"
+    },
+    {
+      "code": 6019,
+      "name": "SameFeeAdmin",
+      "msg": "New and old fee admin are identical"
+    },
+    {
+      "code": 6020,
+      "name": "FeeExceedsMaximum",
+      "msg": "Claim fee exceeds maximum allowed (1 SOL)"
     }
   ],
   "types": [
@@ -1274,6 +1377,31 @@
               "Amount of tokens to distribute."
             ],
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeAdminUpdatedEvent",
+      "docs": [
+        "Emitted when the fee config admin is transferred."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "previous_admin",
+            "docs": [
+              "Previous admin."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "new_admin",
+            "docs": [
+              "New admin."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -1353,6 +1481,70 @@
               "PDA bump seed."
             ],
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeConfigInitializedEvent",
+      "docs": [
+        "Emitted when the fee configuration is initialized."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "Admin that initialized the fee config."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "claim_fee",
+            "docs": [
+              "Initial claim fee in lamports."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_recipient",
+            "docs": [
+              "Initial fee recipient wallet."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeConfigUpdatedEvent",
+      "docs": [
+        "Emitted when the claim fee or recipient is updated."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "Admin that updated the fee config."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "new_claim_fee",
+            "docs": [
+              "New claim fee in lamports."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "new_fee_recipient",
+            "docs": [
+              "New fee recipient wallet."
+            ],
+            "type": "pubkey"
           }
         ]
       }

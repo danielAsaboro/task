@@ -82,6 +82,11 @@ pub enum Commands {
     /// Only the admin who initialized the fee config can call this.
     /// Both fee and recipient are updated atomically.
     SetClaimFee(SetClaimFeeArgs),
+    /// Transfer fee config admin authority to a new account
+    ///
+    /// Only the current admin can call this. The new admin will have
+    /// full control over fee settings (set_claim_fee, set_fee_admin).
+    SetFeeAdmin(SetFeeAdminArgs),
     /// Display the current global fee configuration
     ///
     /// Shows admin, fee amount, recipient, and PDA bump.
@@ -129,6 +134,13 @@ pub struct SetAdminArgs {
 }
 
 #[derive(Parser, Debug)]
+pub struct SetFeeAdminArgs {
+    /// Public key of the new fee config admin
+    #[clap(long, env)]
+    pub new_admin: Pubkey,
+}
+
+#[derive(Parser, Debug)]
 pub struct InitializeFeeConfigArgs {
     /// Claim fee in lamports (e.g. 50000000 = 0.05 SOL). Set to 0 to disable fees.
     #[clap(long, env)]
@@ -170,6 +182,9 @@ fn main() {
         }
         Commands::SetClaimFee(fee_args) => {
             process_set_claim_fee(&args, fee_args);
+        }
+        Commands::SetFeeAdmin(fee_admin_args) => {
+            process_set_fee_admin(&args, fee_admin_args);
         }
         Commands::GetFeeConfig => {
             process_get_fee_config(&args);
@@ -680,6 +695,77 @@ fn process_set_claim_fee(args: &Args, fee_args: &SetClaimFeeArgs) {
             eprintln!("Error: Transaction failed: {e}");
             if err_str.contains("ConstraintAddress") || err_str.contains("Unauthorized") {
                 eprintln!("Hint: Only the fee config admin can update the fee. Check that your --keypair-path matches the admin key.");
+            }
+            std::process::exit(1);
+        }
+    }
+}
+
+fn process_set_fee_admin(args: &Args, fee_admin_args: &SetFeeAdminArgs) {
+    let keypair = match read_keypair_file(&args.keypair_path) {
+        Ok(kp) => kp,
+        Err(e) => {
+            eprintln!("Error: Could not read keypair file at {:?}: {}", args.keypair_path, e);
+            eprintln!("Hint: Use --keypair-path to specify your Solana keypair file (usually ~/.config/solana/id.json)");
+            std::process::exit(1);
+        }
+    };
+
+    if keypair.pubkey() == fee_admin_args.new_admin {
+        eprintln!("Error: New admin is the same as the current admin.");
+        eprintln!("Hint: Provide a different --new-admin public key.");
+        std::process::exit(1);
+    }
+
+    let client = RpcClient::new_with_commitment(&args.rpc_url, CommitmentConfig::confirmed());
+
+    let (fee_config_pda, _) = get_fee_config_pda(&args.program_id);
+
+    // Verify fee config exists
+    if client.get_account(&fee_config_pda).is_err() {
+        eprintln!("Error: Fee config has not been initialized yet.");
+        eprintln!("Hint: Run 'initialize-fee-config' first to create the fee configuration.");
+        std::process::exit(1);
+    }
+
+    let ix = Instruction {
+        program_id: args.program_id,
+        accounts: merkle_distributor_fee_task::accounts::SetFeeAdmin {
+            fee_config: fee_config_pda,
+            admin: keypair.pubkey(),
+            new_admin: fee_admin_args.new_admin,
+        }
+        .to_account_metas(None),
+        data: merkle_distributor_fee_task::instruction::SetFeeAdmin {}.data(),
+    };
+
+    let blockhash = match client.get_latest_blockhash() {
+        Ok(bh) => bh,
+        Err(e) => {
+            eprintln!("Error: Could not connect to RPC at {}: {}", args.rpc_url, e);
+            std::process::exit(1);
+        }
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&keypair.pubkey()),
+        &[&keypair],
+        blockhash,
+    );
+
+    match client.send_and_confirm_transaction_with_spinner(&tx) {
+        Ok(signature) => {
+            println!(
+                "Fee admin transferred to {}\nsignature: {signature:#?}",
+                fee_admin_args.new_admin
+            );
+        }
+        Err(e) => {
+            let err_str = format!("{e}");
+            eprintln!("Error: Transaction failed: {e}");
+            if err_str.contains("ConstraintAddress") || err_str.contains("Unauthorized") {
+                eprintln!("Hint: Only the current fee config admin can transfer authority. Check that your --keypair-path matches the admin key.");
             }
             std::process::exit(1);
         }

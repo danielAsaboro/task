@@ -34,6 +34,8 @@ import {
   FeeConfig,
   InitializeFeeConfigArgs,
   SetClaimFeeArgs,
+  SetFeeAdminArgs,
+  MAX_CLAIM_FEE,
 } from './types';
 import {
   getDistributorPDA,
@@ -60,6 +62,8 @@ export const ERROR_MESSAGES: Record<number, string> = {
   6016: 'Timestamps must be in the future.',
   6017: 'A distributor with this version already exists for this mint.',
   6018: 'Fee recipient address does not match the fee configuration. Use getFeeConfig() to check the current recipient.',
+  6019: 'New and old fee admin are identical.',
+  6020: 'Claim fee exceeds the maximum allowed (1 SOL).',
 };
 
 /**
@@ -1125,6 +1129,9 @@ export class MerkleDistributor {
     if (args.claimFee < 0n) {
       throw new Error('initializeFeeConfig: claimFee cannot be negative.');
     }
+    if (args.claimFee > MAX_CLAIM_FEE) {
+      throw new Error(`initializeFeeConfig: claimFee exceeds maximum allowed (${MAX_CLAIM_FEE} lamports / 1 SOL).`);
+    }
     if (args.claimFee > 0n && args.feeRecipient.equals(PublicKey.default)) {
       throw new Error('initializeFeeConfig: feeRecipient cannot be the zero address when claimFee > 0. Provide a valid wallet address to receive fees.');
     }
@@ -1177,6 +1184,9 @@ export class MerkleDistributor {
   async setClaimFee(args: SetClaimFeeArgs): Promise<string> {
     if (args.claimFee < 0n) {
       throw new Error('setClaimFee: claimFee cannot be negative.');
+    }
+    if (args.claimFee > MAX_CLAIM_FEE) {
+      throw new Error(`setClaimFee: claimFee exceeds maximum allowed (${MAX_CLAIM_FEE} lamports / 1 SOL).`);
     }
     if (args.claimFee > 0n && args.feeRecipient.equals(PublicKey.default)) {
       throw new Error('setClaimFee: feeRecipient cannot be the zero address when claimFee > 0. Provide a valid wallet address to receive fees.');
@@ -1232,6 +1242,54 @@ export class MerkleDistributor {
     } catch (err) {
       throw formatError(err, 'getFeeConfig');
     }
+  }
+
+  /**
+   * Transfers fee config admin authority to a new account
+   * @param args SetFeeAdminArgs
+   * @returns Transaction signature
+   */
+  async setFeeAdmin(args: SetFeeAdminArgs): Promise<string> {
+    if (args.admin.equals(args.newAdmin)) {
+      throw new Error('setFeeAdmin: new admin cannot be the same as the current admin.');
+    }
+
+    const [feeConfigPDA] = getFeeConfigPDA(this.programId);
+
+    try {
+      const signature = await this.program.methods
+        .setFeeAdmin()
+        .accounts({
+          feeConfig: feeConfigPDA,
+          admin: args.admin,
+          newAdmin: args.newAdmin,
+        })
+        .rpc();
+
+      return signature;
+    } catch (err) {
+      throw formatError(err, 'setFeeAdmin');
+    }
+  }
+
+  /**
+   * Creates a transaction instruction for transferring fee config admin
+   * @param args SetFeeAdminArgs
+   * @returns TransactionInstruction
+   */
+  async setFeeAdminInstruction(args: SetFeeAdminArgs): Promise<TransactionInstruction> {
+    const [feeConfigPDA] = getFeeConfigPDA(this.programId);
+
+    const instruction = await this.program.methods
+      .setFeeAdmin()
+      .accounts({
+        feeConfig: feeConfigPDA,
+        admin: args.admin,
+        newAdmin: args.newAdmin,
+      })
+      .instruction();
+
+    return instruction;
   }
 
   /**
