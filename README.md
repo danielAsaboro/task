@@ -24,7 +24,32 @@ Two new instructions and a global `FeeConfig` PDA:
 ## Program ID
 
 ```
-Ah7iuugan983ymZAKJAFAdvPN3My7ESkGUARrFTn3iqM  (localnet)
+Ah7iuugan983ymZAKJAFAdvPN3My7ESkGUARrFTn3iqM
+```
+
+Deployed on **devnet**. [View on Explorer](https://explorer.solana.com/address/Ah7iuugan983ymZAKJAFAdvPN3My7ESkGUARrFTn3iqM?cluster=devnet)
+
+---
+
+## Live devnet transactions
+
+End-to-end run on devnet — fee config initialized, distributor created, claim executed with 0.005 SOL fee collected on-chain.
+
+| Step | Transaction |
+|---|---|
+| `initialize_fee_config` (5_000_000 lamports) | [`48t9mzs4...`](https://explorer.solana.com/tx/48t9mzs4mAw1uZep35QioChuph6GkzAeMQi4M5CaQjdczgrqJE4J669bSmGuAHco78kgExssFT92ppPhio4uMsyF?cluster=devnet) |
+| `new_distributor` | [`v86LVhcg...`](https://explorer.solana.com/tx/v86LVhcgzykuADGfoBfFUgfG15UGZzXvS7GCTnBtngzD573xfRZHrDfdKSLPGYdKbAb1tUTW8Kzu1GiPNJrP1pA?cluster=devnet) |
+| `new_claim` (1 token, fee deducted) | [`2U5Fkb9N...`](https://explorer.solana.com/tx/2U5Fkb9NtXkvcyKk46CwiuKSwpne3WH4yivpPykBd3V3vjBmrmMFZQVEMzDjwyxqaZpDWScXm7ShJc8Buuk4oGS5?cluster=devnet) |
+
+**Accounts:**
+- FeeConfig PDA: `BZA3y7r5EyzEsZ8FfhkCNmEiRKCu2PBGVpg46Q9BUYD2`
+- Distributor PDA: `JBgWRT1jbKAEZByMLdgCqB58B2ckZS2cc3RpHgq6DDBN`
+
+The `new_claim` tx shows 5,000,000 lamports transferred from claimant → fee recipient before the token transfer. The claim is atomic — if SOL transfer fails, no tokens move.
+
+To run it yourself:
+```bash
+npx ts-node --transpile-only scripts/devnet-e2e.ts
 ```
 
 ---
