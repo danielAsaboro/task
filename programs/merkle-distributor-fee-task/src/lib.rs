@@ -84,4 +84,9 @@ pub mod merkle_distributor_fee_task {
     pub fn set_claim_fee(ctx: Context<SetClaimFee>, claim_fee: u64) -> Result<()> {
         handle_set_claim_fee(ctx, claim_fee)
     }
+
+    #[allow(clippy::result_large_err)]
+    pub fn set_fee_admin(ctx: Context<SetFeeAdmin>) -> Result<()> {
+        handle_set_fee_admin(ctx)
+    }
 }

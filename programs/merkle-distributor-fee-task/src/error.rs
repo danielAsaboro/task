@@ -41,4 +41,8 @@ pub enum ErrorCode {
     InvalidVersion,
     #[msg("Fee recipient does not match fee configuration")]
     InvalidFeeRecipient,
+    #[msg("New and old fee admin are identical")]
+    SameFeeAdmin,
+    #[msg("Claim fee exceeds maximum allowed (1 SOL)")]
+    FeeExceedsMaximum,
 }
