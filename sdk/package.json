@@ -1,0 +1,70 @@
+{
+    "name": "@fractalshq/jito-distributor-sdk",
+    "version": "1.0.13",
+    "description": "TypeScript SDK for JITO Merkle Distributor with production-ready versioning and double-hashing support",
+    "main": "dist/src/index.js",
+    "types": "dist/src/index.d.ts",
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "test": "npm run build && jest --passWithNoTests",
+        "claim": "ts-node scripts/claim-tokens.ts",
+        "query": "ts-node scripts/query-distributions.ts",
+        "admin:create-distributor": "ts-node scripts/create-distributor.ts",
+        "admin:fund": "ts-node scripts/fund-distributor.ts",
+        "prepublishOnly": "npm run build"
+    },
+    "keywords": [
+        "solana",
+        "anchor",
+        "airdrop",
+        "merkle",
+        "distributor",
+        "jito",
+        "fractals",
+        "token-distribution",
+        "versioning"
+    ],
+    "author": "Fractals",
+    "license": "MIT",
+    "dependencies": {
+        "@coral-xyz/anchor": "^0.29.0",
+        "@solana/spl-token": "^0.4.14",
+        "@solana/web3.js": "^1.78.0",
+        "bignumber.js": "^9.3.0",
+        "bs58": "^6.0.0",
+        "dotenv": "^16.4.7",
+        "js-sha3": "^0.9.3",
+        "keccak": "^3.0.4"
+    },
+    "devDependencies": {
+        "@types/jest": "^29.0.0",
+        "@types/node": "^20.0.0",
+        "jest": "^29.0.0",
+        "ts-jest": "^29.4.6",
+        "ts-node": "^10.9.0",
+        "typescript": "^5.0.0"
+    },
+    "peerDependencies": {
+        "@coral-xyz/anchor": "^0.29.0",
+        "@solana/spl-token": "^0.4.14",
+        "@solana/web3.js": "^1.78.0"
+    },
+    "files": [
+        "dist",
+        "src",
+        "scripts",
+        "examples",
+        "idl",
+        "README.md",
+        "LICENSE",
+        "NPM_PUBLISHING_GUIDE.md",
+        "DEPLOYMENT.md",
+        "TESTING.md",
+        "MIGRATION.md",
+        "env.example"
+    ]
+}
