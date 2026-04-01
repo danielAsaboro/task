@@ -1,0 +1,10 @@
+name: merkle-distributor-fee-task
+runbooks:
+  - name: deployment
+    description: Deploy the merkle distributor program
+    location: ./runbooks/deployment.tx
+
+environments:
+  development:
+    network_id: localnet
+    rpc_api_url: http://localhost:8899
