@@ -2,7 +2,7 @@
 
 Jito's Merkle Distributor, extended with on-chain admin-controlled claim fees. Built as a technical evaluation for [Fractals Finance](https://fractals.finance) — a B2B DePIN distribution platform running [sync.fractals.fun](https://sync.fractals.fun).
 
-**The problem it solves:** Fractals collects a $0.50/claim fee at the app layer today. Anyone calling the program directly bypasses it. This moves fee enforcement on-chain — trustless, impossible to bypass.
+**The problem it solves:** Fractals collects a flat claim fee today, gated by merkle proof distribution — users only receive their proof after paying. This moves fee enforcement on-chain as a protocol-level guarantee, so fee collection doesn't depend solely on the application layer.
 
 ---
 
